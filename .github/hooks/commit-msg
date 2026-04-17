@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Validates commit messages against Conventional Commits spec.
+# Install: git config core.hooksPath .github/hooks
+
+msg=$(head -1 "$1")
+pattern='^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([^)]+\))?!?: .'
+
+if ! echo "$msg" | grep -qE "$pattern"; then
+  echo "❌ Commit message does not follow Conventional Commits:"
+  echo "   $msg"
+  echo ""
+  echo "Format: type(scope): description"
+  echo "Types:  feat fix docs style refactor perf test chore build ci revert"
+  echo "Eg:     feat(daemon): add JSONL compression support"
+  exit 1
+fi
