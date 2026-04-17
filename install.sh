@@ -115,12 +115,19 @@ echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "MCP Registration"
 echo ""
-echo "Add the following to ~/.claude/settings.json"
-echo "under the top-level 'mcpServers' key:"
+echo "Run:"
 echo ""
-echo '  "agent-ledger": {'
-echo "    \"command\": \"$PYTHON\","
-echo "    \"args\": [\"$INSTALL_DIR/mcp_server.py\"]"
+echo "  claude mcp add agent-ledger -- $PYTHON $INSTALL_DIR/mcp_server.py"
+echo ""
+echo "Or add manually to ~/.claude/settings.json:"
+echo ""
+echo '  {'
+echo '    "mcpServers": {'
+echo '      "agent-ledger": {'
+echo "        \"command\": \"$PYTHON\","
+echo "        \"args\": [\"$INSTALL_DIR/mcp_server.py\"]"
+echo '      }'
+echo '    }'
 echo '  }'
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
