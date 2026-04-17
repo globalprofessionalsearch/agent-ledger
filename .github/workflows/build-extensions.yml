@@ -53,15 +53,19 @@ jobs:
 
       - name: Build
         run: |
-          EXTRA_FLAGS=""
           if command -v brew &>/dev/null; then
             ZSTD_PREFIX="$(brew --prefix zstd)"
-            EXTRA_FLAGS="-DCMAKE_PREFIX_PATH=${ZSTD_PREFIX} -DCMAKE_CXX_FLAGS=-I${ZSTD_PREFIX}/include -DCMAKE_SHARED_LINKER_FLAGS=-L${ZSTD_PREFIX}/lib"
+            cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_PREFIX_PATH="${ZSTD_PREFIX}" \
+              -DCMAKE_CXX_FLAGS="-I${ZSTD_PREFIX}/include" \
+              -DCMAKE_SHARED_LINKER_FLAGS="-L${ZSTD_PREFIX}/lib -undefined dynamic_lookup" \
+              -B build
+          else
+            cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -B build
           fi
-          cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-            ${EXTRA_FLAGS} \
-            -B build
           cmake --build build --target zstd_vfs -j4
 
       - name: Rename artifact
