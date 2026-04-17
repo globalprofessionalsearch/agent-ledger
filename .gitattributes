@@ -1,0 +1,2 @@
+extensions/*.so   binary
+extensions/*.dylib binary
