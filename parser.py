@@ -7,6 +7,9 @@ Pure Python stdlib.
 import json
 from datetime import datetime, timezone
 
+TOOL_RESULT_MAX_CHARS = 500
+STORE_THINKING = False
+
 
 def _ts_parts(ts: str) -> tuple:
     """Return (date_str YYYY-MM-DD, hour int) from ISO8601 timestamp."""
@@ -133,7 +136,7 @@ def parse_line(raw: str) -> list:
                 btype = block.get("type", "")
                 if btype == "tool_result":
                     inner = block.get("content", "")
-                    text = _extract_text(inner)
+                    text = _extract_text(inner)[:TOOL_RESULT_MAX_CHARS]
                     rows.append({
                         **base,
                         "role": "tool_result",
@@ -208,7 +211,7 @@ def parse_line(raw: str) -> list:
                     "is_error": 0,
                 })
 
-            elif btype == "thinking":
+            elif btype == "thinking" and STORE_THINKING:
                 thinking = block.get("thinking", "")
                 if thinking.strip():
                     rows.append({
