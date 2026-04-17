@@ -63,13 +63,14 @@ jobs:
       - name: Build (native)
         if: matrix.cross == false || runner.os == 'macOS'
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -B build
+          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -B build
           cmake --build build -j4
 
       - name: Build (aarch64 cross)
         if: matrix.cross == true
         run: |
           cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
             -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
             -DCMAKE_SYSTEM_NAME=Linux \
