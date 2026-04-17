@@ -56,6 +56,10 @@ jobs:
         if: runner.os == 'Linux' && matrix.cross == true
         run: |
           sudo dpkg --add-architecture arm64
+          # ports.ubuntu.com carries arm64 packages; security.ubuntu.com does not
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-ports.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
           sudo apt-get update
           sudo apt-get install -y cmake \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
@@ -66,10 +70,14 @@ jobs:
       - name: Build (native)
         if: matrix.cross == false || runner.os == 'macOS'
         run: |
-          CMAKE_PREFIX=$(command -v brew &>/dev/null && brew --prefix || echo "")
+          EXTRA_FLAGS=""
+          if command -v brew &>/dev/null; then
+            ZSTD_INC="$(brew --prefix zstd)/include"
+            EXTRA_FLAGS="-DCMAKE_PREFIX_PATH=$(brew --prefix) -DCMAKE_CXX_FLAGS=-I${ZSTD_INC}"
+          fi
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-            ${CMAKE_PREFIX:+-DCMAKE_PREFIX_PATH="$CMAKE_PREFIX"} \
+            ${EXTRA_FLAGS} \
             -B build
           cmake --build build -j4
 
