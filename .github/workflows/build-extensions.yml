@@ -26,13 +26,11 @@ jobs:
             arch: x86_64
             out: zstd_vfs-linux-x86_64.so
             src: build/zstd_vfs.so
-            cross: false
 
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04-arm
             arch: aarch64
             out: zstd_vfs-linux-aarch64.so
             src: build/zstd_vfs.so
-            cross: true
 
     runs-on: ${{ matrix.runner }}
 
@@ -46,52 +44,25 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install cmake sqlite zstd
 
-      - name: Install deps (Linux x86_64)
-        if: runner.os == 'Linux' && matrix.cross == false
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake libsqlite3-dev libzstd-dev libcurl4-openssl-dev
 
-      - name: Install deps (Linux aarch64 cross)
-        if: runner.os == 'Linux' && matrix.cross == true
-        run: |
-          sudo dpkg --add-architecture arm64
-          # ports.ubuntu.com carries arm64 packages; security.ubuntu.com does not
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-ports.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-ports.list
-          sudo apt-get update
-          sudo apt-get install -y cmake \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libzstd-dev:arm64 \
-            libcurl4-openssl-dev:arm64 \
-            libsqlite3-dev:arm64
 
-      - name: Build (native)
-        if: matrix.cross == false || runner.os == 'macOS'
+      - name: Build
         run: |
           EXTRA_FLAGS=""
           if command -v brew &>/dev/null; then
-            ZSTD_INC="$(brew --prefix zstd)/include"
-            EXTRA_FLAGS="-DCMAKE_PREFIX_PATH=$(brew --prefix) -DCMAKE_CXX_FLAGS=-I${ZSTD_INC}"
+            ZSTD_PREFIX="$(brew --prefix zstd)"
+            EXTRA_FLAGS="-DCMAKE_PREFIX_PATH=${ZSTD_PREFIX} -DCMAKE_CXX_FLAGS=-I${ZSTD_PREFIX}/include -DCMAKE_SHARED_LINKER_FLAGS=-L${ZSTD_PREFIX}/lib"
           fi
           cmake -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
             ${EXTRA_FLAGS} \
             -B build
-          cmake --build build -j4
-
-      - name: Build (aarch64 cross)
-        if: matrix.cross == true
-        run: |
-          cmake -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -B build
-          cmake --build build -j4
+          cmake --build build --target zstd_vfs -j4
 
       - name: Rename artifact
         run: mv ${{ matrix.src }} ${{ matrix.out }}
