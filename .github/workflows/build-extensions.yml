@@ -1,0 +1,101 @@
+name: Build Extensions
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/build-extensions.yml'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-13
+            arch: x86_64
+            out: zstd_vfs-darwin-x86_64.dylib
+            src: build/zstd_vfs.dylib
+
+          - runner: macos-14
+            arch: arm64
+            out: zstd_vfs-darwin-arm64.dylib
+            src: build/zstd_vfs.dylib
+
+          - runner: ubuntu-latest
+            arch: x86_64
+            out: zstd_vfs-linux-x86_64.so
+            src: build/zstd_vfs.so
+
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            out: zstd_vfs-linux-aarch64.so
+            src: build/zstd_vfs.so
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: mlin/sqlite_zstd_vfs
+          ref: 228f6d12c55f69e584d909024d8ef9d599f2f398
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cmake sqlite zstd
+
+      - name: Install deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake libsqlite3-dev libzstd-dev libcurl4-openssl-dev
+
+
+      - name: Build
+        run: |
+          if command -v brew &>/dev/null; then
+            ZSTD_PREFIX="$(brew --prefix zstd)"
+            cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_PREFIX_PATH="${ZSTD_PREFIX}" \
+              -DCMAKE_CXX_FLAGS="-I${ZSTD_PREFIX}/include" \
+              -DCMAKE_SHARED_LINKER_FLAGS="-L${ZSTD_PREFIX}/lib -undefined dynamic_lookup" \
+              -B build
+          else
+            cmake -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -B build
+          fi
+          cmake --build build --target zstd_vfs -j4
+
+      - name: Rename artifact
+        run: mv ${{ matrix.src }} ${{ matrix.out }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: ${{ matrix.out }}
+
+  commit:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: extensions
+          merge-multiple: true
+
+      - name: Commit extensions to branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add extensions/
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "build: update vendored zstd_vfs extensions"
+          git push

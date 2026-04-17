@@ -3,8 +3,12 @@ Database module for agent-ledger.
 Pure Python stdlib — sqlite3 only.
 """
 
+import logging
+import platform
 import sqlite3
 from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 # ── paths ─────────────────────────────────────────────────────────────────────
 
@@ -20,11 +24,51 @@ def ensure_directories():
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _zstd_extension_path() -> Path | None:
+    system = platform.system().lower()
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
+    ext = "dylib" if system == "darwin" else "so"
+    p = Path(__file__).parent / "extensions" / f"zstd_vfs-{system}-{arch}.{ext}"
+    return p if p.exists() else None
+
+
+def _db_is_compressed(db_path: Path) -> bool:
+    """Return True if the database was created with zstd_vfs (application_id = 0x7a737464)."""
+    if not db_path.exists():
+        return False
+    try:
+        conn = sqlite3.connect(str(db_path))
+        app_id = conn.execute("PRAGMA application_id").fetchone()[0]
+        conn.close()
+        return app_id == 0x7a737464
+    except Exception:
+        return False
+
+
 def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
     ensure_directories()
-    conn = sqlite3.connect(str(db_path))
+    ext = _zstd_extension_path()
+    use_compression = bool(ext) and (not db_path.exists() or _db_is_compressed(db_path))
+
+    if use_compression:
+        loader = sqlite3.connect(":memory:")
+        loader.enable_load_extension(True)
+        loader.load_extension(str(ext))
+        loader.close()
+        conn = sqlite3.connect(f"file:{db_path}?vfs=zstd", uri=True)
+    else:
+        if ext and db_path.exists() and not _db_is_compressed(db_path):
+            log.warning(
+                "zstd_vfs extension found but database is not compressed. "
+                "Run: python3 migrate_compress.py"
+            )
+        elif list(Path(__file__).parent.glob("extensions/zstd_vfs-*")):
+            log.warning("zstd_vfs extension not found for this platform — using uncompressed storage")
+        conn = sqlite3.connect(str(db_path))
+
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 

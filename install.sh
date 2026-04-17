@@ -110,6 +110,28 @@ EOF
     echo "  systemctl --user stop agent-ledger"
 fi
 
+# ── compression ────────────────────────────────────────────────────────────────
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "Page Compression"
+echo ""
+if $PYTHON -c "import sqlite3; c=sqlite3.connect(':memory:'); c.enable_load_extension(True)" 2>/dev/null; then
+    echo "SQLite extension loading: supported"
+    if ls "$INSTALL_DIR/extensions/zstd_vfs-"* 2>/dev/null | grep -q .; then
+        echo "zstd_vfs extension: found"
+        echo ""
+        echo "To compress your existing database (~50% size reduction):"
+        echo "  python3 $INSTALL_DIR/migrate_compress.py"
+    else
+        echo "zstd_vfs extension: not yet built"
+        echo ""
+        echo "Trigger the 'Build Extensions' GitHub Actions workflow, then re-run this script."
+    fi
+else
+    echo "SQLite extension loading: not supported on this Python build"
+    echo "Page compression will not be available."
+fi
+
 # ── MCP registration ───────────────────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
