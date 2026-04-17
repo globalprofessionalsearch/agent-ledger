@@ -4,23 +4,6 @@ Captures all Claude Code CLI session history into a searchable SQLite database w
 
 **Pure Python stdlib. No pip installs required.**
 
-## Structure
-
-```
-~/Documents/code/agent-ledger/   ← code
-    db.py                         schema, connection helpers
-    parser.py                     JSONL → structured rows
-    daemon.py                     polls ~/.claude/projects/, ingests new lines
-    renderer.py                   renders DB rows as markdown
-    mcp_server.py                 MCP stdio server
-    install.sh                    autostart setup
-
-~/Documents/agent-ledger/        ← data
-    memory.db                     SQLite database
-    daemon.log                    daemon output
-    exports/markdown/             default markdown export location
-```
-
 ## Quick Start
 
 ```bash
@@ -64,7 +47,7 @@ Search my memory for discussions about the registrar proxy
 Give me all conversation history for today around 9am as markdown
 ```
 ```
-Write a markdown export of this morning's jeenius-cli sessions to ~/Desktop/morning.md
+Write a markdown export of this morning's sessions to ~/Desktop/morning.md
 ```
 
 ## MCP Registration
@@ -76,34 +59,8 @@ Add to `~/.claude/settings.json`:
   "mcpServers": {
     "agent-ledger": {
       "command": "python3",
-      "args": ["/Users/joe/Documents/code/agent-ledger/mcp_server.py"]
+      "args": ["/path/to/agent-ledger/mcp_server.py"]
     }
   }
 }
-```
-
-## Direct DB Queries
-
-```bash
-# Full-text search
-sqlite3 ~/Documents/agent-ledger/memory.db \
-  "SELECT timestamp, role, content
-   FROM messages_fts
-   JOIN messages ON messages_fts.rowid = messages.id
-   WHERE messages_fts MATCH 'registrar proxy'
-   LIMIT 10;"
-
-# All messages today
-sqlite3 ~/Documents/agent-ledger/memory.db \
-  "SELECT timestamp, role, substr(content,1,200)
-   FROM messages
-   WHERE date = date('now')
-   ORDER BY timestamp;"
-
-# Sessions for a project
-sqlite3 ~/Documents/agent-ledger/memory.db \
-  "SELECT session_id, started_at, ended_at, git_branch
-   FROM sessions
-   WHERE project = 'jeenius-cli'
-   ORDER BY started_at DESC;"
 ```
