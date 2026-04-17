@@ -33,19 +33,40 @@ def _zstd_extension_path() -> Path | None:
     return p if p.exists() else None
 
 
+def _db_is_compressed(db_path: Path) -> bool:
+    """Return True if the database was created with zstd_vfs (application_id = 0x7a737464)."""
+    if not db_path.exists():
+        return False
+    try:
+        conn = sqlite3.connect(str(db_path))
+        app_id = conn.execute("PRAGMA application_id").fetchone()[0]
+        conn.close()
+        return app_id == 0x7a737464
+    except Exception:
+        return False
+
+
 def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
     ensure_directories()
     ext = _zstd_extension_path()
-    if ext:
+    use_compression = bool(ext) and (not db_path.exists() or _db_is_compressed(db_path))
+
+    if use_compression:
         loader = sqlite3.connect(":memory:")
         loader.enable_load_extension(True)
         loader.load_extension(str(ext))
         loader.close()
         conn = sqlite3.connect(f"file:{db_path}?vfs=zstd", uri=True)
     else:
-        if list(Path(__file__).parent.glob("extensions/zstd_vfs-*")):
+        if ext and db_path.exists() and not _db_is_compressed(db_path):
+            log.warning(
+                "zstd_vfs extension found but database is not compressed. "
+                "Run: python3 migrate_compress.py"
+            )
+        elif list(Path(__file__).parent.glob("extensions/zstd_vfs-*")):
             log.warning("zstd_vfs extension not found for this platform — using uncompressed storage")
         conn = sqlite3.connect(str(db_path))
+
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=DELETE")
     conn.execute("PRAGMA foreign_keys=ON")
