@@ -55,15 +55,22 @@ jobs:
       - name: Install deps (Linux aarch64 cross)
         if: runner.os == 'Linux' && matrix.cross == true
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y cmake \
             gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            libzstd-dev libcurl4-openssl-dev
+            libzstd-dev:arm64 \
+            libcurl4-openssl-dev:arm64 \
+            libsqlite3-dev:arm64
 
       - name: Build (native)
         if: matrix.cross == false || runner.os == 'macOS'
         run: |
-          cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -B build
+          CMAKE_PREFIX=$(command -v brew &>/dev/null && brew --prefix || echo "")
+          cmake -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+            ${CMAKE_PREFIX:+-DCMAKE_PREFIX_PATH="$CMAKE_PREFIX"} \
+            -B build
           cmake --build build -j4
 
       - name: Build (aarch64 cross)
