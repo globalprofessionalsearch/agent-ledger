@@ -30,6 +30,9 @@ def _zstd_extension_path() -> Path | None:
     arch = "arm64" if machine in ("arm64", "aarch64") else "x86_64"
     ext = "dylib" if system == "darwin" else "so"
     p = Path(__file__).parent / "extensions" / f"zstd_vfs-{system}-{arch}.{ext}"
+    if not p.exists() and system == "darwin" and arch == "x86_64":
+        log.warning("No zstd_vfs extension for Intel Mac — using uncompressed storage")
+        return None
     return p if p.exists() else None
 
 
