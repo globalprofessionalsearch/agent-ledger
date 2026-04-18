@@ -12,11 +12,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-13
-            arch: x86_64
-            out: zstd_vfs-darwin-x86_64.dylib
-            src: build/zstd_vfs.dylib
-
           - runner: macos-14
             arch: arm64
             out: zstd_vfs-darwin-arm64.dylib
