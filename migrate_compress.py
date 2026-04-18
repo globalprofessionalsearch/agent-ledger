@@ -56,7 +56,7 @@ def migrate(dry_run: bool = False):
     # Load extension and get source counts
     src = sqlite3.connect(str(DB_PATH))
     src.enable_load_extension(True)
-    src.load_extension(str(ext), "sqlite3_zstdvfs_init")
+    src.execute("SELECT load_extension(?, ?)", [str(ext), "sqlite3_zstdvfs_init"])
 
     src_messages = _count(src, "messages")
     src_sessions  = _count(src, "sessions")
@@ -70,7 +70,7 @@ def migrate(dry_run: bool = False):
     # Verify counts in compressed copy
     loader = sqlite3.connect(":memory:")
     loader.enable_load_extension(True)
-    loader.load_extension(str(ext), "sqlite3_zstdvfs_init")
+    loader.execute("SELECT load_extension(?, ?)", [str(ext), "sqlite3_zstdvfs_init"])
     loader.close()
 
     dst = sqlite3.connect(f"file:{tmp_path}?vfs=zstd", uri=True)
