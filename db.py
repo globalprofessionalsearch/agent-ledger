@@ -57,7 +57,7 @@ def get_connection(db_path: Path = DB_PATH) -> sqlite3.Connection:
     if use_compression:
         loader = sqlite3.connect(":memory:")
         loader.enable_load_extension(True)
-        loader.load_extension(str(ext))
+        loader.load_extension(str(ext), "sqlite3_zstdvfs_init")
         loader.close()
         conn = sqlite3.connect(f"file:{db_path}?vfs=zstd", uri=True)
     else:
