@@ -20,10 +20,8 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from db import DB_PATH, initialize, get_connection
-from renderer import (
+from ledger.db import DB_PATH, initialize, get_connection
+from ledger.renderer import (
     render_time_range, render_search_results,
     write_markdown as _write_markdown,
     read_markdown as _read_markdown,
