@@ -23,3 +23,59 @@ def test_bucket_size_30_minutes():
 
 def test_bucket_size_under_1_hour():
     assert bucket_size_minutes(59 * 60) == 5
+
+from ledger.activity import build_buckets
+
+def _insert_user_msg(conn, ts, session_id="sess-1", is_sidechain=0):
+    conn.execute("""
+        INSERT INTO messages(session_id, role, subtype, timestamp, date, hour, is_sidechain)
+        VALUES (?, 'user', 'human', ?, '2026-04-21', 14, ?)
+    """, [session_id, ts, is_sidechain])
+    conn.commit()
+
+def test_build_buckets_empty_range(conn):
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
+    assert len(result) == 4  # four 15-min buckets
+    assert all(b["count"] == 0 for b in result)
+
+def test_build_buckets_counts_user_messages(conn):
+    _insert_user_msg(conn, "2026-04-21T14:05:00Z")
+    _insert_user_msg(conn, "2026-04-21T14:07:00Z")
+    _insert_user_msg(conn, "2026-04-21T14:32:00Z")
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
+    assert result[0]["count"] == 2   # 14:00–14:15
+    assert result[1]["count"] == 0   # 14:15–14:30
+    assert result[2]["count"] == 1   # 14:30–14:45
+    assert result[3]["count"] == 0   # 14:45–15:00
+
+def test_build_buckets_excludes_sidechains(conn):
+    _insert_user_msg(conn, "2026-04-21T14:05:00Z", is_sidechain=1)
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
+    assert all(b["count"] == 0 for b in result)
+
+def test_build_buckets_excludes_non_user_roles(conn):
+    conn.execute("""
+        INSERT INTO messages(session_id, role, subtype, timestamp, date, hour, is_sidechain)
+        VALUES ('sess-1', 'assistant', 'text', '2026-04-21T14:05:00Z', '2026-04-21', 14, 0)
+    """)
+    conn.commit()
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
+    assert all(b["count"] == 0 for b in result)
+
+def test_build_buckets_filters_by_project(conn):
+    conn.execute("INSERT INTO sessions(session_id, project) VALUES ('sess-other', 'other')")
+    conn.commit()
+    conn.execute("""
+        INSERT INTO messages(session_id, role, subtype, timestamp, date, hour, is_sidechain)
+        VALUES ('sess-other', 'user', 'human', '2026-04-21T14:05:00Z', '2026-04-21', 14, 0)
+    """)
+    conn.commit()
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", "test-project", 15)
+    assert all(b["count"] == 0 for b in result)
+
+def test_build_buckets_start_end_format(conn):
+    result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
+    assert result[0]["start"] == "2026-04-21T14:00:00Z"
+    assert result[0]["end"]   == "2026-04-21T14:15:00Z"
+    assert result[3]["start"] == "2026-04-21T14:45:00Z"
+    assert result[3]["end"]   == "2026-04-21T15:00:00Z"
