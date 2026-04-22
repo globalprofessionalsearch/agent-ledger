@@ -42,16 +42,16 @@ def build_buckets(conn, start: str, end: str, project, bucket_minutes: int) -> l
         buckets.append({"start": _fmt_dt(t), "end": _fmt_dt(bucket_end), "count": 0})
         t += delta
 
-    project_clause = ""
+    # project_clause is a hardcoded literal, not user input — no injection risk
+    project_clause = "AND s.project = ?" if project else ""
     params = [start, end]
     if project:
-        project_clause = "AND s.project = ?"
         params.append(project)
 
     rows = conn.execute(f"""
         SELECT m.timestamp FROM messages m
         JOIN sessions s ON m.session_id = s.session_id
-        WHERE m.timestamp >= ? AND m.timestamp <= ?
+        WHERE m.timestamp >= ? AND m.timestamp < ?
           AND m.role = 'user' AND m.subtype = 'human' AND m.is_sidechain = 0
           {project_clause}
     """, params).fetchall()

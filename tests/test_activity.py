@@ -1,4 +1,4 @@
-from ledger.activity import bucket_size_minutes
+from ledger.activity import bucket_size_minutes, build_buckets
 
 def test_bucket_size_over_7_days():
     assert bucket_size_minutes(8 * 24 * 60 * 60) == 1440
@@ -23,8 +23,6 @@ def test_bucket_size_30_minutes():
 
 def test_bucket_size_under_1_hour():
     assert bucket_size_minutes(59 * 60) == 5
-
-from ledger.activity import build_buckets
 
 def _insert_user_msg(conn, ts, session_id="sess-1", is_sidechain=0):
     conn.execute("""
