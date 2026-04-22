@@ -167,7 +167,7 @@ def activity_map(conn, params: dict) -> dict:
 
     buckets = build_buckets(conn, start, end, project, bm)
     total = sum(b["count"] for b in buckets)
-    utc_offset = datetime.now().astimezone().isoformat(timespec='seconds')[-6:]
+    utc_offset = _fmt_dt(start_dt)[-6:]
 
     if total == 0:
         return {

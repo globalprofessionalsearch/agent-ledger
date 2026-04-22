@@ -82,6 +82,8 @@ def test_build_buckets_start_end_format(conn):
     assert s0 == datetime.fromisoformat("2026-04-21T14:00:00+00:00")
     assert e0 == datetime.fromisoformat("2026-04-21T14:15:00+00:00")
     assert e3 == datetime.fromisoformat("2026-04-21T15:00:00+00:00")
+    s3 = datetime.fromisoformat(result[3]["start"])
+    assert s3 == datetime.fromisoformat("2026-04-21T14:45:00+00:00")
 
 
 def test_natural_breaks_empty():
@@ -208,6 +210,7 @@ def test_activity_map_empty_range(conn):
     assert result["total_user_messages"] == 0
     assert result["hot_windows"] == []
     assert "No user activity" in result["interpretation"]
+    assert "utc_offset" in result
 
 def test_activity_map_returns_required_keys(conn):
     _insert_msgs(conn, ["2026-04-21T14:05:00Z", "2026-04-21T14:10:00Z"])
@@ -216,7 +219,7 @@ def test_activity_map_returns_required_keys(conn):
         "end":   "2026-04-21T15:00:00Z",
     })
     for key in ("bucket_size_minutes", "total_user_messages", "interpretation",
-                "classes", "histogram", "hot_windows"):
+                "classes", "histogram", "hot_windows", "utc_offset"):
         assert key in result, f"Missing key: {key}"
 
 def test_activity_map_histogram_covers_full_range(conn):
