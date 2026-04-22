@@ -4,7 +4,7 @@ Identifies where user activity is concentrated in a time range.
 Pure Python stdlib.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 _DAY = 24 * 60 * 60
 _WEEK = 7 * _DAY
@@ -152,7 +152,7 @@ def activity_map(conn, params: dict) -> dict:
     """Main entry point for the get_activity_map MCP tool."""
     start   = params.get("start", "").strip()
     end     = params.get("end", "").strip()
-    project = params.get("project", "").strip() or None
+    project = (params.get("project") or "").strip() or None
 
     start_dt = _parse_dt(start)
     end_dt   = _parse_dt(end)
@@ -198,7 +198,7 @@ def activity_map(conn, params: dict) -> dict:
     interpretation = (
         f"{total} user message(s) across {len(buckets)} bucket(s) "
         f"({bm}-minute resolution). "
-        f"Jenks found {k} natural tier(s) (k={k}). "
+        f"Natural gap detection found {k} tier(s). "
     )
     if n_dense:
         interpretation += (

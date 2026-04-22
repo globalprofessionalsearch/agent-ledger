@@ -266,3 +266,11 @@ def test_activity_map_project_filter(conn):
         "project": "test-project",
     })
     assert result["total_user_messages"] == 0
+
+def test_activity_map_project_none_does_not_crash(conn):
+    result = activity_map(conn, {
+        "start":   "2026-04-21T14:00:00Z",
+        "end":     "2026-04-21T15:00:00Z",
+        "project": None,
+    })
+    assert result["total_user_messages"] == 0
