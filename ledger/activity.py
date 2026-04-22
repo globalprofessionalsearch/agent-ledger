@@ -64,3 +64,24 @@ def build_buckets(conn, start: str, end: str, project, bucket_minutes: int) -> l
             buckets[idx]["count"] += 1
 
     return buckets
+
+
+def _find_natural_breaks(sorted_counts: list) -> list:
+    """Find up to 2 class break points using natural gap detection.
+
+    Returns a sorted list of break values (upper bounds of lower classes).
+    A break at value V means: class boundary between V and V+1.
+    """
+    if len(sorted_counts) < 2:
+        return []
+
+    counts = sorted(sorted_counts)
+    gaps = [counts[i + 1] - counts[i] for i in range(len(counts) - 1)]
+    median_gap = sorted(gaps)[len(gaps) // 2]
+
+    significant = sorted(
+        [(gaps[i], counts[i]) for i in range(len(gaps)) if gaps[i] > median_gap],
+        reverse=True,
+    )[:2]
+
+    return sorted(v for _, v in significant)

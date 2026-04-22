@@ -1,4 +1,4 @@
-from ledger.activity import bucket_size_minutes, build_buckets
+from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks
 
 def test_bucket_size_over_7_days():
     assert bucket_size_minutes(8 * 24 * 60 * 60) == 1440
@@ -77,3 +77,35 @@ def test_build_buckets_start_end_format(conn):
     assert result[0]["end"]   == "2026-04-21T14:15:00Z"
     assert result[3]["start"] == "2026-04-21T14:45:00Z"
     assert result[3]["end"]   == "2026-04-21T15:00:00Z"
+
+
+def test_natural_breaks_empty():
+    assert _find_natural_breaks([]) == []
+
+def test_natural_breaks_single_value():
+    assert _find_natural_breaks([5]) == []
+
+def test_natural_breaks_all_same():
+    # No gap larger than median — no breaks
+    assert _find_natural_breaks([3, 3, 3, 3]) == []
+
+def test_natural_breaks_one_clear_gap():
+    # Counts: [1, 1, 10, 11] — big gap between 1 and 10
+    # gaps: [0, 9, 1] — median = 1, significant: [9] at index 1
+    # break at sorted_counts[1] = 1
+    breaks = _find_natural_breaks([1, 1, 10, 11])
+    assert len(breaks) == 1
+    assert breaks[0] == 1
+
+def test_natural_breaks_two_clear_gaps():
+    # Counts: [1, 2, 10, 11, 50, 51]
+    # gaps: [1, 8, 1, 39, 1] — median = 1, significant: [8, 39]
+    # breaks at sorted_counts[1]=2 and sorted_counts[3]=11
+    breaks = _find_natural_breaks([1, 2, 10, 11, 50, 51])
+    assert len(breaks) == 2
+    assert breaks == [2, 11]
+
+def test_natural_breaks_caps_at_two():
+    # Even with three clear gaps, returns at most 2 breaks (the two largest)
+    breaks = _find_natural_breaks([1, 10, 20, 30, 100])
+    assert len(breaks) <= 2
