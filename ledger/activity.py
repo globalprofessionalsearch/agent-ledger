@@ -124,6 +124,8 @@ def _suggested_calls(bucket: dict, bucket_minutes: int) -> list:
     cls = bucket["class"]
     if cls == "quiet":
         return []
+    if cls not in ("active", "dense"):
+        raise ValueError(f"Unknown bucket class: {cls!r}")
 
     at_leaf = bucket_minutes <= _LEAF_BUCKET_MINUTES
 

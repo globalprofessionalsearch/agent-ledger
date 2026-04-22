@@ -180,3 +180,8 @@ def test_suggested_calls_includes_reason():
     assert "reason" in result[0]
     assert isinstance(result[0]["reason"], str)
     assert len(result[0]["reason"]) > 0
+
+def test_suggested_calls_unknown_class_raises():
+    import pytest
+    with pytest.raises(ValueError, match="Unknown bucket class"):
+        _suggested_calls({**_WINDOW, "class": "bogus"}, bucket_minutes=60)
