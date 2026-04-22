@@ -1,4 +1,4 @@
-from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks, _classify, _build_classes
+from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks, _classify, _build_classes, _suggested_calls
 
 def test_bucket_size_over_7_days():
     assert bucket_size_minutes(8 * 24 * 60 * 60) == 1440
@@ -148,3 +148,35 @@ def test_build_classes_two_breaks():
     assert result["active"]["min_count"] == 4
     assert result["active"]["max_count"] == 10
     assert result["dense"]["min_count"] == 11
+
+
+_WINDOW = {"start": "2026-04-21T14:00:00Z", "end": "2026-04-21T15:00:00Z", "count": 5}
+
+def test_suggested_calls_quiet_returns_empty():
+    result = _suggested_calls({**_WINDOW, "class": "quiet"}, bucket_minutes=60)
+    assert result == []
+
+def test_suggested_calls_active_suggests_write_markdown():
+    result = _suggested_calls({**_WINDOW, "class": "active"}, bucket_minutes=60)
+    assert len(result) == 1
+    assert result[0]["tool"] == "write_markdown"
+    assert result[0]["args"]["start"] == _WINDOW["start"]
+    assert result[0]["args"]["end"] == _WINDOW["end"]
+
+def test_suggested_calls_dense_non_leaf_suggests_activity_map():
+    result = _suggested_calls({**_WINDOW, "class": "dense"}, bucket_minutes=60)
+    assert len(result) == 1
+    assert result[0]["tool"] == "get_activity_map"
+    assert result[0]["args"]["start"] == _WINDOW["start"]
+    assert result[0]["args"]["end"] == _WINDOW["end"]
+
+def test_suggested_calls_dense_at_leaf_suggests_write_markdown():
+    result = _suggested_calls({**_WINDOW, "class": "dense"}, bucket_minutes=5)
+    assert len(result) == 1
+    assert result[0]["tool"] == "write_markdown"
+
+def test_suggested_calls_includes_reason():
+    result = _suggested_calls({**_WINDOW, "class": "active"}, bucket_minutes=60)
+    assert "reason" in result[0]
+    assert isinstance(result[0]["reason"], str)
+    assert len(result[0]["reason"]) > 0

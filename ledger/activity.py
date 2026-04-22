@@ -114,3 +114,33 @@ def _build_classes(breaks: list, min_nonzero: int, max_nonzero: int) -> dict:
         "active": {"min_count": breaks[0] + 1, "max_count": breaks[1]},
         "dense":  {"min_count": breaks[1] + 1},
     }
+
+
+_LEAF_BUCKET_MINUTES = 5
+
+
+def _suggested_calls(bucket: dict, bucket_minutes: int) -> list:
+    """Return structured suggested next-tool calls for a classified bucket."""
+    cls = bucket["class"]
+    if cls == "quiet":
+        return []
+
+    at_leaf = bucket_minutes <= _LEAF_BUCKET_MINUTES
+
+    if cls == "dense" and not at_leaf:
+        return [{
+            "tool": "get_activity_map",
+            "reason": "Window is dense -- subdivide before reading to avoid missing nuance",
+            "args": {"start": bucket["start"], "end": bucket["end"]},
+        }]
+
+    reason = (
+        "Active window -- ready to read at this granularity"
+        if cls == "active"
+        else "Dense window at minimum granularity -- read directly"
+    )
+    return [{
+        "tool": "write_markdown",
+        "reason": reason,
+        "args": {"start": bucket["start"], "end": bucket["end"]},
+    }]
