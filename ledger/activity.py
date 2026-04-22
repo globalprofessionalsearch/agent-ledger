@@ -146,3 +146,74 @@ def _suggested_calls(bucket: dict, bucket_minutes: int) -> list:
         "reason": reason,
         "args": {"start": bucket["start"], "end": bucket["end"]},
     }]
+
+
+def activity_map(conn, params: dict) -> dict:
+    """Main entry point for the get_activity_map MCP tool."""
+    start   = params.get("start", "").strip()
+    end     = params.get("end", "").strip()
+    project = params.get("project", "").strip() or None
+
+    start_dt = _parse_dt(start)
+    end_dt   = _parse_dt(end)
+    range_seconds = int((end_dt - start_dt).total_seconds())
+    bm = bucket_size_minutes(range_seconds)
+
+    buckets = build_buckets(conn, start, end, project, bm)
+    total = sum(b["count"] for b in buckets)
+
+    if total == 0:
+        return {
+            "bucket_size_minutes": bm,
+            "total_user_messages": 0,
+            "interpretation": "No user activity found in this range.",
+            "classes": {},
+            "histogram": [{**b, "class": "quiet"} for b in buckets],
+            "hot_windows": [],
+        }
+
+    nonzero_counts = sorted(b["count"] for b in buckets if b["count"] > 0)
+    breaks = _find_natural_breaks(nonzero_counts)
+    classes = _build_classes(breaks, min_nonzero=nonzero_counts[0], max_nonzero=nonzero_counts[-1])
+
+    classified = []
+    for b in buckets:
+        cls = _classify(b["count"], breaks)
+        classified.append({**b, "class": cls})
+
+    hot_windows = []
+    for b in classified:
+        if b["class"] == "quiet":
+            continue
+        calls = _suggested_calls(b, bm)
+        hot_windows.append({**b, "suggested_calls": calls})
+
+    hot_windows.sort(key=lambda w: w["count"], reverse=True)
+
+    n_dense  = sum(1 for w in hot_windows if w["class"] == "dense")
+    n_active = sum(1 for w in hot_windows if w["class"] == "active")
+    n_quiet  = sum(1 for b in classified  if b["class"] == "quiet")
+    k = len(breaks) + 1
+
+    interpretation = (
+        f"{total} user message(s) across {len(buckets)} bucket(s) "
+        f"({bm}-minute resolution). "
+        f"Jenks found {k} natural tier(s) (k={k}). "
+    )
+    if n_dense:
+        interpretation += (
+            f"{n_dense} dense window(s) warrant subdivision before reading. "
+        )
+    if n_active:
+        interpretation += f"{n_active} active window(s) are ready to read directly. "
+    if n_quiet:
+        interpretation += f"{n_quiet} quiet bucket(s) can be skipped."
+
+    return {
+        "bucket_size_minutes": bm,
+        "total_user_messages": total,
+        "interpretation": interpretation.strip(),
+        "classes": classes,
+        "histogram": classified,
+        "hot_windows": hot_windows,
+    }

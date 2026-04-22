@@ -1,4 +1,4 @@
-from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks, _classify, _build_classes, _suggested_calls
+from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks, _classify, _build_classes, _suggested_calls, activity_map
 
 def test_bucket_size_over_7_days():
     assert bucket_size_minutes(8 * 24 * 60 * 60) == 1440
@@ -185,3 +185,84 @@ def test_suggested_calls_unknown_class_raises():
     import pytest
     with pytest.raises(ValueError, match="Unknown bucket class"):
         _suggested_calls({**_WINDOW, "class": "bogus"}, bucket_minutes=60)
+
+
+def _insert_msgs(conn, timestamps):
+    for ts in timestamps:
+        conn.execute("""
+            INSERT INTO messages(session_id, role, subtype, timestamp, date, hour, is_sidechain)
+            VALUES ('sess-1', 'user', 'human', ?, '2026-04-21', 14, 0)
+        """, [ts])
+    conn.commit()
+
+def test_activity_map_empty_range(conn):
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    assert result["total_user_messages"] == 0
+    assert result["hot_windows"] == []
+    assert "No user activity" in result["interpretation"]
+
+def test_activity_map_returns_required_keys(conn):
+    _insert_msgs(conn, ["2026-04-21T14:05:00Z", "2026-04-21T14:10:00Z"])
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    for key in ("bucket_size_minutes", "total_user_messages", "interpretation",
+                "classes", "histogram", "hot_windows"):
+        assert key in result, f"Missing key: {key}"
+
+def test_activity_map_histogram_covers_full_range(conn):
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    # 1 hour at 15-min buckets = 4 buckets (bucket_size_minutes returns 15 for >= 1-hour ranges)
+    assert len(result["histogram"]) == 4
+
+def test_activity_map_hot_windows_excludes_quiet(conn):
+    _insert_msgs(conn, ["2026-04-21T14:05:00Z"])
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    for w in result["hot_windows"]:
+        assert w["class"] != "quiet"
+
+def test_activity_map_hot_windows_sorted_by_count_desc(conn):
+    _insert_msgs(conn, [
+        "2026-04-21T14:05:00Z",
+        "2026-04-21T14:32:00Z",
+        "2026-04-21T14:33:00Z",
+        "2026-04-21T14:34:00Z",
+    ])
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    counts = [w["count"] for w in result["hot_windows"]]
+    assert counts == sorted(counts, reverse=True)
+
+def test_activity_map_total_count(conn):
+    _insert_msgs(conn, ["2026-04-21T14:05:00Z", "2026-04-21T14:10:00Z", "2026-04-21T14:35:00Z"])
+    result = activity_map(conn, {
+        "start": "2026-04-21T14:00:00Z",
+        "end":   "2026-04-21T15:00:00Z",
+    })
+    assert result["total_user_messages"] == 3
+
+def test_activity_map_project_filter(conn):
+    conn.execute("INSERT INTO sessions(session_id, project) VALUES ('sess-2', 'other')")
+    conn.execute("""
+        INSERT INTO messages(session_id, role, subtype, timestamp, date, hour, is_sidechain)
+        VALUES ('sess-2', 'user', 'human', '2026-04-21T14:05:00Z', '2026-04-21', 14, 0)
+    """)
+    conn.commit()
+    result = activity_map(conn, {
+        "start":   "2026-04-21T14:00:00Z",
+        "end":     "2026-04-21T15:00:00Z",
+        "project": "test-project",
+    })
+    assert result["total_user_messages"] == 0
