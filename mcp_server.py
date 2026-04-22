@@ -5,13 +5,14 @@ Implements MCP stdio protocol (JSON-RPC 2.0) over stdin/stdout.
 Pure Python stdlib — no MCP SDK required.
 
 Tools:
-  search_memory        — FTS5 full-text search
-  query_time_range     — raw time-range retrieval
-  render_markdown      — render time range as markdown string
-  write_markdown       — render + write to disk
-  read_markdown        — read markdown file from disk
-  list_sessions        — list recent sessions
-  list_projects        — list all known projects
+  search_memory        -- FTS5 full-text search
+  query_time_range     -- raw time-range retrieval
+  get_activity_map     -- identify where user activity is concentrated in a time range
+  render_markdown      -- render time range as markdown string
+  write_markdown       -- render + write to disk
+  read_markdown        -- read markdown file from disk
+  list_sessions        -- list recent sessions
+  list_projects        -- list all known projects
 """
 
 import json
@@ -20,16 +21,15 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from db import DB_PATH, initialize, get_connection
-from renderer import (
+from ledger.db import DB_PATH, initialize, get_connection
+from ledger.renderer import (
     render_time_range, render_search_results,
     write_markdown as _write_markdown,
     read_markdown as _read_markdown,
     default_export_path,
     EXPORTS_DIR,
 )
+from ledger.activity import activity_map as _activity_map
 
 
 def _rows(result) -> list:
@@ -179,6 +179,14 @@ def list_projects(conn, p: dict) -> dict:
     return {"count": len(rows), "projects": _rows(rows)}
 
 
+def get_activity_map(conn, p: dict) -> dict:
+    start = p.get("start", "").strip()
+    end   = p.get("end",   "").strip()
+    if not start or not end:
+        return {"error": "start and end are required (ISO8601)"}
+    return _activity_map(conn, p)
+
+
 # ── tool manifest ─────────────────────────────────────────────────────────────
 
 TOOLS = [
@@ -200,7 +208,12 @@ TOOLS = [
     },
     {
         "name": "query_time_range",
-        "description": "Retrieve raw messages within a time range. Returns structured JSON.",
+        "description": (
+            "Retrieve raw messages as structured JSON. "
+            "Has a hard 200-row limit -- use get_activity_map + render_markdown/write_markdown "
+            "instead for any human-readable summary. "
+            "This tool is for programmatic inspection of specific messages, not for summarization."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -216,7 +229,9 @@ TOOLS = [
         "name": "render_markdown",
         "description": (
             "Render session history as formatted markdown for a time window. "
-            "Use for queries like 'show me what happened around 9am today'."
+            "Best used on windows already identified as 'active' by get_activity_map. "
+            "For 'dense' windows or ranges longer than ~30 minutes, use write_markdown instead "
+            "to avoid context overflow."
         ),
         "inputSchema": {
             "type": "object",
@@ -233,7 +248,9 @@ TOOLS = [
     {
         "name": "write_markdown",
         "description": (
-            "Render session history as markdown and write to disk. "
+            "Render session history as markdown and write to disk, then read back with read_markdown. "
+            "Preferred over render_markdown for any window flagged 'dense' by get_activity_map, "
+            "or for ranges longer than ~30 minutes. "
             "If path is omitted, writes to the default exports directory. "
             "Use for exporting sessions for sharing or pushing to Notion."
         ),
@@ -259,6 +276,29 @@ TOOLS = [
                 "path": {"type": "string", "description": "File path to read"}
             },
             "required": ["path"]
+        }
+    },
+    {
+        "name": "get_activity_map",
+        "description": (
+            "Identify where user activity is concentrated in a time range. "
+            "Returns a histogram of all time buckets and a ranked list of significant windows, "
+            "each classified as 'active' or 'dense' with structured suggested_calls pointing to "
+            "the next tool in the pipeline. "
+            "Use this before render_markdown or write_markdown for any range longer than ~30 minutes "
+            "-- it tells you where to look and how carefully to read each window. "
+            "Dense windows suggest a recursive get_activity_map call to subdivide further. "
+            "Active windows suggest write_markdown. "
+            "Quiet windows can be skipped."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "start":   {"type": "string", "description": "ISO8601 start time"},
+                "end":     {"type": "string", "description": "ISO8601 end time"},
+                "project": {"type": "string", "description": "Filter by project name (optional)"},
+            },
+            "required": ["start", "end"]
         }
     },
     {
@@ -314,6 +354,7 @@ def handle(conn, req: dict):
             dispatch = {
                 "search_memory":    lambda: search_memory(conn, args),
                 "query_time_range": lambda: query_time_range(conn, args),
+                "get_activity_map": lambda: get_activity_map(conn, args),
                 "render_markdown":  lambda: render_markdown(conn, args),
                 "write_markdown":   lambda: write_markdown_tool(conn, args),
                 "read_markdown":    lambda: read_markdown_tool(args),

@@ -19,13 +19,11 @@ import time
 from pathlib import Path
 from datetime import datetime, timezone
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-from db import (
+from ledger.db import (
     DB_PATH, PROJECTS_DIR, initialize, get_connection,
     upsert_session, insert_message, get_cursor, set_cursor
 )
-from parser import parse_line, session_info_from_event
+from ledger.parser import parse_line, session_info_from_event
 
 # ── logging ───────────────────────────────────────────────────────────────────
 
