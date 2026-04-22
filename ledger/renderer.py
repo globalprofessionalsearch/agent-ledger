@@ -5,7 +5,7 @@ Pure Python stdlib.
 """
 
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -38,6 +38,11 @@ def _fmt_ts(ts: str) -> str:
         return dt.astimezone().strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return ts
+
+
+def _to_utc_str(ts: str) -> str:
+    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def render_session_header(session) -> str:
@@ -100,7 +105,7 @@ def render_time_range(
         role_filter.append("system")
 
     placeholders = ",".join("?" * len(role_filter))
-    params = [start, end] + role_filter
+    params = [_to_utc_str(start), _to_utc_str(end)] + role_filter
 
     project_clause = ""
     if project:

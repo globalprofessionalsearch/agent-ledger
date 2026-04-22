@@ -30,6 +30,7 @@ from ledger.renderer import (
     EXPORTS_DIR,
 )
 from ledger.activity import activity_map as _activity_map
+from ledger.renderer import _to_utc_str
 
 
 def _rows(result) -> list:
@@ -75,7 +76,7 @@ def query_time_range(conn, p: dict) -> dict:
     if not start or not end:
         return {"error": "start and end are required (ISO8601)"}
 
-    params = [start, end]
+    params = [_to_utc_str(start), _to_utc_str(end)]
     project_clause = ""
     if project:
         project_clause = "AND s.project = ?"
