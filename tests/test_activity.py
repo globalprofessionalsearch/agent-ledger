@@ -1,4 +1,4 @@
-from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks
+from ledger.activity import bucket_size_minutes, build_buckets, _find_natural_breaks, _classify, _build_classes
 
 def test_bucket_size_over_7_days():
     assert bucket_size_minutes(8 * 24 * 60 * 60) == 1440
@@ -109,3 +109,42 @@ def test_natural_breaks_caps_at_two():
     # Even with three clear gaps, returns at most 2 breaks (the two largest)
     breaks = _find_natural_breaks([1, 10, 20, 30, 100])
     assert len(breaks) <= 2
+
+def test_classify_zero_always_quiet():
+    assert _classify(0, []) == "quiet"
+    assert _classify(0, [3]) == "quiet"
+    assert _classify(0, [3, 10]) == "quiet"
+
+def test_classify_no_breaks_active():
+    assert _classify(5, []) == "active"
+    assert _classify(1, []) == "active"
+
+def test_classify_one_break():
+    # break at 3: ≤3 → quiet, >3 → active
+    assert _classify(3, [3]) == "quiet"
+    assert _classify(4, [3]) == "active"
+
+def test_classify_two_breaks():
+    # breaks at [3, 10]: ≤3 → quiet, ≤10 → active, >10 → dense
+    assert _classify(3, [3, 10]) == "quiet"
+    assert _classify(7, [3, 10]) == "active"
+    assert _classify(10, [3, 10]) == "active"
+    assert _classify(11, [3, 10]) == "dense"
+
+def test_build_classes_no_breaks():
+    result = _build_classes([], min_nonzero=1, max_nonzero=8)
+    assert set(result.keys()) == {"active"}
+
+def test_build_classes_one_break():
+    result = _build_classes([3], min_nonzero=1, max_nonzero=8)
+    assert set(result.keys()) == {"quiet", "active"}
+    assert result["quiet"]["max_count"] == 3
+    assert result["active"]["min_count"] == 4
+
+def test_build_classes_two_breaks():
+    result = _build_classes([3, 10], min_nonzero=1, max_nonzero=15)
+    assert set(result.keys()) == {"quiet", "active", "dense"}
+    assert result["quiet"]["max_count"] == 3
+    assert result["active"]["min_count"] == 4
+    assert result["active"]["max_count"] == 10
+    assert result["dense"]["min_count"] == 11

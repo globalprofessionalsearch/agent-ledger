@@ -85,3 +85,32 @@ def _find_natural_breaks(sorted_counts: list) -> list:
     )[:2]
 
     return sorted(v for _, v in significant)
+
+
+def _classify(count: int, breaks: list) -> str:
+    """Assign a class label to a bucket count given a list of break points."""
+    if count == 0:
+        return "quiet"
+    if not breaks:
+        return "active"
+    if count <= breaks[0]:
+        return "quiet"
+    if len(breaks) == 1 or count <= breaks[1]:
+        return "active"
+    return "dense"
+
+
+def _build_classes(breaks: list, min_nonzero: int, max_nonzero: int) -> dict:
+    """Build the classes boundary dict for the response."""
+    if not breaks:
+        return {"active": {"min_count": min_nonzero, "max_count": max_nonzero}}
+    if len(breaks) == 1:
+        return {
+            "quiet":  {"max_count": breaks[0]},
+            "active": {"min_count": breaks[0] + 1, "max_count": max_nonzero},
+        }
+    return {
+        "quiet":  {"max_count": breaks[0]},
+        "active": {"min_count": breaks[0] + 1, "max_count": breaks[1]},
+        "dense":  {"min_count": breaks[1] + 1},
+    }
