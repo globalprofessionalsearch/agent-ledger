@@ -72,11 +72,16 @@ def test_build_buckets_filters_by_project(conn):
     assert all(b["count"] == 0 for b in result)
 
 def test_build_buckets_start_end_format(conn):
+    from datetime import datetime
     result = build_buckets(conn, "2026-04-21T14:00:00Z", "2026-04-21T15:00:00Z", None, 15)
-    assert result[0]["start"] == "2026-04-21T14:00:00Z"
-    assert result[0]["end"]   == "2026-04-21T14:15:00Z"
-    assert result[3]["start"] == "2026-04-21T14:45:00Z"
-    assert result[3]["end"]   == "2026-04-21T15:00:00Z"
+    # Timestamps should be timezone-aware ISO8601 in local time
+    s0 = datetime.fromisoformat(result[0]["start"])
+    e0 = datetime.fromisoformat(result[0]["end"])
+    e3 = datetime.fromisoformat(result[3]["end"])
+    assert s0.utcoffset() is not None  # must carry timezone info
+    assert s0 == datetime.fromisoformat("2026-04-21T14:00:00+00:00")
+    assert e0 == datetime.fromisoformat("2026-04-21T14:15:00+00:00")
+    assert e3 == datetime.fromisoformat("2026-04-21T15:00:00+00:00")
 
 
 def test_natural_breaks_empty():

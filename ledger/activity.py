@@ -4,7 +4,7 @@ Identifies where user activity is concentrated in a time range.
 Pure Python stdlib.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 _DAY = 24 * 60 * 60
 _WEEK = 7 * _DAY
@@ -26,7 +26,11 @@ def _parse_dt(s: str) -> datetime:
 
 
 def _fmt_dt(dt: datetime) -> str:
-    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return dt.astimezone().isoformat(timespec='seconds')
+
+
+def _to_utc_str(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def build_buckets(conn, start: str, end: str, project, bucket_minutes: int) -> list:
@@ -44,7 +48,9 @@ def build_buckets(conn, start: str, end: str, project, bucket_minutes: int) -> l
 
     # project_clause is a hardcoded literal, not user input — no injection risk
     project_clause = "AND s.project = ?" if project else ""
-    params = [start, end]
+    start_utc = _to_utc_str(start_dt)
+    end_utc = _to_utc_str(end_dt)
+    params = [start_utc, end_utc]
     if project:
         params.append(project)
 
@@ -161,6 +167,7 @@ def activity_map(conn, params: dict) -> dict:
 
     buckets = build_buckets(conn, start, end, project, bm)
     total = sum(b["count"] for b in buckets)
+    utc_offset = datetime.now().astimezone().isoformat(timespec='seconds')[-6:]
 
     if total == 0:
         return {
@@ -170,6 +177,7 @@ def activity_map(conn, params: dict) -> dict:
             "classes": {},
             "histogram": [{**b, "class": "quiet"} for b in buckets],
             "hot_windows": [],
+            "utc_offset": utc_offset,
         }
 
     nonzero_counts = sorted(b["count"] for b in buckets if b["count"] > 0)
@@ -216,4 +224,5 @@ def activity_map(conn, params: dict) -> dict:
         "classes": classes,
         "histogram": classified,
         "hot_windows": hot_windows,
+        "utc_offset": utc_offset,
     }
